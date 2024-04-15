@@ -12,7 +12,7 @@ import pygame
 import numpy as np
 
 class Chess(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 100}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 1000}
 
     def __init__(self, render_mode=None, size=8):
         self.size = size  # The size of the square grid
@@ -79,7 +79,7 @@ class Chess(gym.Env):
 #        else:
 #            reward = -100
         temp = np.ones((self.size, self.size))
-        terminated = np.array_equal(self._field, temp2)
+        terminated = np.array_equal(self._field, temp)
         reward = 0 if terminated else -1  # Binary sparse rewards
         
         observation = self._get_obs()
