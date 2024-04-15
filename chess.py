@@ -12,17 +12,13 @@ import pygame
 import numpy as np
 
 class Chess(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 1000}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 100}
 
     def __init__(self, render_mode=None, size=8):
         self.size = size  # The size of the square grid
         self.window_size = 512  # The size of the PyGame window
 
-        self.observation_space = spaces.Dict(
-            {
-                "agent": spaces.Box(0, size - 1, shape=(2,), dtype=int),
-                "target": spaces.Box(0, size - 1, shape=(2,), dtype=int),
-            })
+        self.observation_space = spaces.Discrete(self.size*self.size)
 
         self.action_space = spaces.Discrete(8)
 
@@ -44,10 +40,10 @@ class Chess(gym.Env):
         self.clock = None
 
     def _get_obs(self):
-        return {"agent": self._agent_location, "target": self._target_location}
+        return self.size*self._agent_location[0]+self._agent_location[1]
     
     def _get_info(self):
-        return {"distance": np.linalg.norm(self._agent_location - self._target_location, ord=1)}
+        return {}
     
     def get_field_size(self):
         return self.size * self.size
@@ -55,14 +51,11 @@ class Chess(gym.Env):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
-
+        
+        self._field = np.zeros((self.size, self.size))
         # Choose the agent's location uniformly at random
         self._agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
-
-        # We will sample the target's location randomly until it does not coincide with the agent's location
-        self._target_location = self._agent_location
-        while np.array_equal(self._target_location, self._agent_location):
-            self._target_location = self.np_random.integers(0, self.size, size=2, dtype=int)
+        self._field[self._agent_location] = 1
 
         observation = self._get_obs()
 
@@ -77,13 +70,14 @@ class Chess(gym.Env):
         temp1 = np.clip(self._agent_location + direction, 0, self.size - 1)
         temp2 = self._agent_location + direction
 
-        terminated = np.array_equal(self._agent_location, self._target_location)
-        reward = 0 if terminated else -1  # Binary sparse rewards
-
         if np.array_equal(temp1, temp2):
             self._agent_location = self._agent_location + direction
+            self._field[self._agent_location] = 1
 #        else:
 #            reward = -100
+        temp = np.unique(self._field)
+        terminated = len(temp) == 1
+        reward = 0 if terminated else -1  # Binary sparse rewards
         
         observation = self._get_obs()
         info = self._get_info()
@@ -112,15 +106,6 @@ class Chess(gym.Env):
             self.window_size / self.size
         )  # The size of a single grid square in pixels
 
-        # First we draw the target
-        pygame.draw.rect(
-            canvas,
-            (255, 0, 0),
-            pygame.Rect(
-                pix_square_size * self._target_location,
-                (pix_square_size, pix_square_size),
-            ),
-        )
         # Now we draw the agent
         pygame.draw.circle(
             canvas,

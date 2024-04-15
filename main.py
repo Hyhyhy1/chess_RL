@@ -3,112 +3,53 @@ import torch
 import numpy as np
 from torch import nn
 from chess import Chess
+import matplotlib.pyplot as plt
 
 gym.register(
     id='Chess-v0',
     entry_point='chess:Chess'
 )
 
-class net(nn.Module):
-    def __init__(self, state_dim, action_n):
-        super().__init__()
+def get_epsilon_action(q_values, epsilon, action_n):
+    policy = np.ones(action_n) * epsilon / action_n
+    max_action = np.argmax(q_values)
+    policy[max_action] += 1 - epsilon
+    return np.random.choice(np.arange(action_n), p=policy)
 
-        self.state_dim = state_dim
-        self.action_n = action_n
 
-        self.net = nn.Sequential(
-            nn.Linear(self.state_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.Sigmoid(),
-            nn.Linear(64, self.action_n)
-        )       
-
-        self.optim = torch.optim.Adam(self.parameters(), lr=1.0e-2)
-
-        self.softmax = nn.Softmax()
-
-        self.loss = torch.nn.CrossEntropyLoss()
-
-    def forward(self, x):
-        x = self.net(x)
-        return x
+def SARSA(env, episode_n, gamma=0.99, trajectory_len=500, alpha=0.5):
+    total_rewards = np.zeros(episode_n)
+    state_n = env.observation_space.n
+    action_n = env.action_space.n
+    q_function = np.zeros((state_n, action_n))
     
-    def get_action(self, state):
-        state = torch.FloatTensor(state)
-        logits = self.forward(state)
-        action_prob = self.softmax(logits).detach().numpy()
-        action = np.random.choice(self.action_n, p=action_prob)
-        return action
-    
-    def update_policy(self, trajectories):
-        elite_states, elite_actions = [], []
+    for episode in range(episode_n):
+        epsilon = 1 / (episode + 1)
 
-        for trajectory in trajectories:
-            elite_states.extend(trajectory['states'])
-            elite_actions.extend(trajectory['actions'])
-        
-        elite_states = torch.FloatTensor(np.array(elite_states))
-        elite_actions = torch.LongTensor(np.array(elite_actions))
+        state = env.reset() 
+        action = get_epsilon_action(q_function[state], epsilon, action_n)
 
-        loss = self.loss(self.forward(elite_states), elite_actions)
-        loss.backward()
-        self.optim.step()
-        self.optim.zero_grad()
-        return None
+        for _ in range(trajectory_len):
 
-def get_trajectory(env, agent, trajectory_len):
-    trajectory = {'states': [], 'actions': [], 'total_reward': 0}
+            next_state, reward, done, _, info = env.step(action)
+            next_action = get_epsilon_action(q_function[next_state], epsilon, action_n)
+            q_function[state][action] += alpha * (reward + gamma * q_function[next_state][next_action] - q_function[state][action])
 
-    state = env.reset()
-    state = np.concatenate((state['agent'], state['target']))
-    trajectory['states'].append(state)
+            state = next_state
+            action = next_action
 
-    for _ in range(trajectory_len):
+            total_rewards[episode] += reward
 
-        action = agent.get_action(state)
-        trajectory['actions'].append(action)
+            if done:
+                break
 
-        state, reward, done, _, info = env.step(action)
-        state = np.concatenate((state['agent'], state['target']))
-        trajectory['total_reward'] += reward
-
-        if done:
-            break
-
-        trajectory['states'].append(state)
-    
-    return trajectory
-
-def get_elite_trajectories(trajectories, q_param):
-    total_rewards = [trajectory['total_reward'] for trajectory in trajectories]
-    quantilize = np.quantile(total_rewards, q = q_param)
-    return [trajectory for trajectory in trajectories if trajectory['total_reward'] > quantilize]
+    return total_rewards
 
 
 
-#env = gym.make('Chess-v0',render_mode='human')
-env = gym.make('Chess-v0')
-
-state_dim = 4
-action_count = 8
-
-agent = net(state_dim, action_count)
-agent.train()
-
-episode_n = 1000
-trajectory_n = 20
-trajectory_len = 100
-q_param = 0.8
-
-
-for _ in range(episode_n):
-    trajectories = [get_trajectory(env, agent, trajectory_len) for _ in range(trajectory_n)]
-
-    mean_total_reward = np.mean([trajectory['total_reward'] for trajectory in trajectories])
-    print(mean_total_reward)
-
-    elite_trajectories = get_elite_trajectories(trajectories, q_param)
-
-    if len(elite_trajectories) > 0:
-        agent.update_policy(elite_trajectories)
+if __name__ == "__main__":
+    #env = gym.make('Chess-v0',render_mode='human')
+    env = gym.make('Chess-v0')
+    total_rewards = SARSA(env, episode_n=400, trajectory_len=300)
+    #plt.plot(total_rewards)
+    #plt.show()
