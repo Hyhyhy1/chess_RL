@@ -41,6 +41,7 @@ def SARSA(env, episode_n, gamma=0.99, trajectory_len=500, alpha=0.5):
             total_rewards[episode] += reward
 
             if done:
+                print('done')
                 break
 
     return total_rewards
@@ -48,8 +49,8 @@ def SARSA(env, episode_n, gamma=0.99, trajectory_len=500, alpha=0.5):
 
 
 if __name__ == "__main__":
-    #env = gym.make('Chess-v0',render_mode='human')
-    env = gym.make('Chess-v0')
-    total_rewards = SARSA(env, episode_n=400, trajectory_len=300)
-    #plt.plot(total_rewards)
-    #plt.show()
+    env = gym.make('Chess-v0',render_mode='human')
+    #env = gym.make('Chess-v0')
+    total_rewards = SARSA(env, episode_n=400, trajectory_len=400)
+    plt.plot(total_rewards)
+    plt.show()

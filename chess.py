@@ -51,6 +51,8 @@ class Chess(gym.Env):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
+
+        self._visited = []
         
         self._field = np.zeros((self.size, self.size))
         # Choose the agent's location uniformly at random
@@ -71,12 +73,13 @@ class Chess(gym.Env):
         temp2 = self._agent_location + direction
 
         if np.array_equal(temp1, temp2):
+            self._visited.append(self._agent_location)
             self._agent_location = self._agent_location + direction
             self._field[self._agent_location] = 1
 #        else:
 #            reward = -100
-        temp = np.unique(self._field)
-        terminated = len(temp) == 1
+        temp = np.ones((self.size, self.size))
+        terminated = np.array_equal(self._field, temp2)
         reward = 0 if terminated else -1  # Binary sparse rewards
         
         observation = self._get_obs()
@@ -105,6 +108,16 @@ class Chess(gym.Env):
         pix_square_size = (
             self.window_size / self.size
         )  # The size of a single grid square in pixels
+
+        for place in self._visited:
+            pygame.draw.rect(
+                canvas,
+                (255, 0, 0),
+                pygame.Rect(
+                    pix_square_size * place,
+                    (pix_square_size, pix_square_size),
+                ),
+            )
 
         # Now we draw the agent
         pygame.draw.circle(
